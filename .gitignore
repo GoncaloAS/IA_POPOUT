@@ -1,0 +1,75 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+build/
+dist/
+.eggs/
+develop-eggs/
+.installed.cfg
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+*.ipynb_executed.ipynb
+*-checkpoint.ipynb
+.jupyter/
+
+# --- Caches / linters ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# --- Virtual environments ---
+.env
+.venv
+env/
+venv/
+ENV/
+
+# --- OS-specific ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# --- IDE / editors ---
+.vscode/
+.idea/
+*.code-workspace
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# --- Pygame / runtime artifacts ---
+*.log
+
+# --- Project-specific ---
+# Large binary fixtures (kept locally but not committed)
+ConnectedFour-main.zip
+/tmp/
+
+# Outputs that the experiments scripts can regenerate.
+# Comment these out if you want to commit them for grader convenience.
+# codes/decision_tree.pkl
+# codes/iris_tree.pkl
+# codes/popout_dataset.csv
+
+# Anthropic Claude internal state
+.claude/
