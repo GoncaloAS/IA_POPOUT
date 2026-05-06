@@ -7,6 +7,7 @@ state -> Move|str ('resign'|'draw'). Same loop serves all three game scenarios
 
 from __future__ import annotations
 
+import os
 import random
 from typing import Callable, Optional, Union
 
@@ -14,6 +15,13 @@ from popout import (
     COLS, EMPTY, Move, P1, P2, State,
     apply_move, can_claim_repetition_draw, initial_state, legal_moves, render,
 )
+
+TREE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "decision_tree.pkl")
+
+# Difficulty presets: (n_simulations, rollout, tactical_root). Mirror gui.py.
+EASY = (100, "random", False)
+MEDIUM = (400, "heuristic_win", True)
+HARD = (800, "heuristic_win", True)
 
 Decision = Union[Move, str]
 Strategy = Callable[[State], Decision]
@@ -171,11 +179,99 @@ def play_game(
     return state
 
 
+def _announce(strat: Strategy, label: str) -> Strategy:
+    """Wrap an AI strategy so the CLI prints a 'thinking...' cue."""
+    def w(state: State) -> Decision:
+        print(f"[{label} thinking...]", flush=True)
+        return strat(state)
+    return w
+
+
+def _make_mcts(preset, label: str, seed: Optional[int] = None) -> Strategy:
+    from mcts import mcts_strategy
+    n_sims, rollout, tactical = preset
+    rng = random.Random(seed)
+    strat = mcts_strategy(n_simulations=n_sims, rollout=rollout,
+                          tactical_root=tactical, rng=rng)
+    return _announce(strat, label)
+
+
+def _make_tree() -> Strategy:
+    import pickle
+    from decision_tree_builder import tree_strategy
+    with open(TREE_PATH, "rb") as f:
+        tree = pickle.load(f)
+    return tree_strategy(tree)
+
+
+def _build_modes():
+    modes = [
+        ("Human vs Human",
+         lambda: (human_strategy, human_strategy)),
+        ("Human vs MCTS — Easy",
+         lambda: (human_strategy, _make_mcts(EASY, "MCTS-Easy"))),
+        ("Human vs MCTS — Medium",
+         lambda: (human_strategy, _make_mcts(MEDIUM, "MCTS-Medium"))),
+        ("Human vs MCTS — Hard",
+         lambda: (human_strategy, _make_mcts(HARD, "MCTS-Hard"))),
+        ("MCTS vs MCTS",
+         lambda: (_make_mcts(MEDIUM, "MCTS-1"),
+                  _make_mcts(MEDIUM, "MCTS-2", seed=99))),
+    ]
+    if os.path.exists(TREE_PATH):
+        modes.extend([
+            ("Human vs Tree (ID3)",
+             lambda: (human_strategy, _make_tree())),
+            ("MCTS vs Tree (CvC, 2 algos)",
+             lambda: (_make_mcts(MEDIUM, "MCTS"), _make_tree())),
+        ])
+    return modes
+
+
+def _print_menu(modes) -> None:
+    print("\nPopOut CLI — choose mode:")
+    for i, (label, _) in enumerate(modes):
+        print(f"  {i+1}) {label}")
+    print("  q) quit")
+
+
+def _read_mode_choice(modes) -> Optional[int]:
+    while True:
+        try:
+            raw = input("Mode> ").strip().lower()
+        except EOFError:
+            return None
+        if raw in ("q", "quit", "exit"):
+            return None
+        if raw.isdigit():
+            idx = int(raw) - 1
+            if 0 <= idx < len(modes):
+                return idx
+        print(f"Invalid choice. Pick 1-{len(modes)} or 'q'.")
+
+
 def main() -> None:  # pragma: no cover
-    print("PopOut CLI — Human vs Human")
-    print(HELP_TEXT)
-    final = play_game(human_strategy, human_strategy)
-    print(format_state(final))
+    modes = _build_modes()
+    if not os.path.exists(TREE_PATH):
+        print("(decision_tree.pkl not found - Tree modes unavailable. "
+              "Run: python train_tree.py --sweep)")
+    while True:
+        _print_menu(modes)
+        idx = _read_mode_choice(modes)
+        if idx is None:
+            return
+        label, factory = modes[idx]
+        print(f"\n=== {label} ===")
+        print(HELP_TEXT)
+        p1, p2 = factory()
+        final = play_game(p1, p2)
+        print(format_state(final))
+        try:
+            again = input("\nPlay again? [y/N] ").strip().lower()
+        except EOFError:
+            return
+        if again not in ("y", "yes"):
+            return
 
 
 if __name__ == "__main__":  # pragma: no cover
