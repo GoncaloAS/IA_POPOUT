@@ -1,9 +1,7 @@
-"""Phase 8: rigorous evaluation. Win-rate matrix, learning curve, charts.
+"""Fase 8: avaliacao rigorosa. Matriz win-rate, learning curve, charts.
 
-Saves PNG charts to content/ for use by the notebook.
+Guarda PNGs em content/ para serem usados pelo notebook.
 """
-
-from __future__ import annotations
 
 import argparse
 import math
@@ -12,8 +10,6 @@ import pickle
 import random
 import sys
 import time
-from dataclasses import dataclass
-from typing import Callable, Dict, List
 
 import matplotlib
 matplotlib.use("Agg")
@@ -49,7 +45,7 @@ def factory_tree(tree):
 
 
 def time_strat(strat):
-    times: List[float] = []
+    times = []
     def w(state):
         t0 = time.perf_counter()
         m = strat(state)
@@ -59,34 +55,43 @@ def time_strat(strat):
     return w
 
 
-@dataclass
 class CellResult:
-    label_a: str
-    label_b: str
-    wins_a: int
-    wins_b: int
-    draws: int
-    avg_time_a: float
-    avg_time_b: float
-    n_games: int
+    def __init__(self, label_a, label_b, wins_a, wins_b, draws,
+                 avg_time_a, avg_time_b, n_games):
+        self.label_a = label_a
+        self.label_b = label_b
+        self.wins_a = wins_a
+        self.wins_b = wins_b
+        self.draws = draws
+        self.avg_time_a = avg_time_a
+        self.avg_time_b = avg_time_b
+        self.n_games = n_games
 
 
-def run_match(fa, fb, label_a, label_b, n_games=4, max_turns=200) -> CellResult:
-    wa = wb = d = 0
+def run_match(fa, fb, label_a, label_b, n_games=4, max_turns=200):
+    wa = 0
+    wb = 0
+    d = 0
     ta_all, tb_all = [], []
     for g in range(n_games):
         if g % 2 == 0:
-            sa = time_strat(fa()); sb = time_strat(fb())
+            sa = time_strat(fa())
+            sb = time_strat(fb())
             p1, p2, ap = sa, sb, P1
         else:
-            sb = time_strat(fb()); sa = time_strat(fa())
+            sb = time_strat(fb())
+            sa = time_strat(fa())
             p1, p2, ap = sb, sa, P2
         f = play_game(p1, p2, on_render=lambda _: None,
                       show_intermediate=False, max_turns=max_turns)
-        ta_all.extend(sa._times); tb_all.extend(sb._times)
-        if f.winner == ap: wa += 1
-        elif f.winner == "draw": d += 1
-        else: wb += 1
+        ta_all.extend(sa._times)
+        tb_all.extend(sb._times)
+        if f.winner == ap:
+            wa += 1
+        elif f.winner == "draw":
+            d += 1
+        else:
+            wb += 1
     return CellResult(
         label_a=label_a, label_b=label_b,
         wins_a=wa, wins_b=wb, draws=d,
@@ -96,11 +101,11 @@ def run_match(fa, fb, label_a, label_b, n_games=4, max_turns=200) -> CellResult:
     )
 
 
-def win_rate_matrix(agents: Dict[str, Callable], n_games=4, max_turns=200):
+def win_rate_matrix(agents, n_games=4, max_turns=200):
     labels = list(agents.keys())
     n = len(labels)
     matrix = np.zeros((n, n))
-    times: Dict[str, List[float]] = {l: [] for l in labels}
+    times = {l: [] for l in labels}
 
     for i, la in enumerate(labels):
         for j, lb in enumerate(labels):
@@ -150,7 +155,7 @@ def chart_winrate_heatmap(labels, matrix, out_path):
     ax.set_yticklabels(labels)
     ax.set_xlabel("Opponent (B)")
     ax.set_ylabel("Agent (A)")
-    ax.set_title("Win-rate (A vs B) — 0=B always, 1=A always")
+    ax.set_title("Win-rate (A vs B) -- 0=B always, 1=A always")
     for i in range(len(labels)):
         for j in range(len(labels)):
             color = "black" if 0.3 <= matrix[i, j] <= 0.7 else "white"
@@ -181,7 +186,7 @@ def chart_learning_curve(rows, out_path):
 
 
 def chart_depth_sensitivity(out_path):
-    """Static numbers from the train_tree.py sweep — re-run there to update."""
+    # Numeros estaticos retirados do sweep do train_tree.py -- correr la para actualizar
     depths = [3, 5, 8, 10, "None"]
     train_acc = [0.303, 0.526, 0.876, 0.904, 0.904]
     test_acc = [0.169, 0.157, 0.221, 0.227, 0.227]
@@ -189,11 +194,14 @@ def chart_depth_sensitivity(out_path):
     x = list(range(len(depths)))
     ax.plot(x, train_acc, marker="o", label="Train", linewidth=2)
     ax.plot(x, test_acc, marker="s", label="Test", linewidth=2)
-    ax.set_xticks(x); ax.set_xticklabels([str(d) for d in depths])
+    ax.set_xticks(x)
+    ax.set_xticklabels([str(d) for d in depths])
     ax.set_xlabel("max_depth")
     ax.set_ylabel("Accuracy")
-    ax.set_title("Depth sensitivity — Tree over PopOut dataset")
-    ax.grid(True, alpha=0.3); ax.legend(); ax.set_ylim(0, 1)
+    ax.set_title("Depth sensitivity -- Tree over PopOut dataset")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    ax.set_ylim(0, 1)
     fig.tight_layout()
     fig.savefig(out_path, dpi=120, bbox_inches="tight")
     plt.close(fig)

@@ -1,41 +1,38 @@
-"""Phase 4: MCTS variations sweeps — rollout, N, C, max_children.
+"""Fase 4: variacoes do MCTS -- sweeps de rollout, N, C e max_children.
 
-Usage:
-    python mcts_variations.py             # full
-    python mcts_variations.py --quick     # smaller
-    python mcts_variations.py --exp A     # only experiment A
+Uso:
+    python mcts_variations.py             # tudo
+    python mcts_variations.py --quick     # versao reduzida
+    python mcts_variations.py --exp A     # so a experiencia A
 """
-
-from __future__ import annotations
 
 import argparse
 import math
 import random
 import time
-from dataclasses import dataclass
-from typing import Callable, List
 
 from game import play_game, random_strategy
-from popout import P1, P2, State
+from popout import P1, P2
 from mcts import mcts_strategy
 
 DEFAULT_C = math.sqrt(2)
 
 
-@dataclass
 class MatchResult:
-    label_a: str
-    label_b: str
-    wins_a: int
-    wins_b: int
-    draws: int
-    avg_time_a: float
-    avg_time_b: float
-    n_games: int
+    def __init__(self, label_a, label_b, wins_a, wins_b, draws,
+                 avg_time_a, avg_time_b, n_games):
+        self.label_a = label_a
+        self.label_b = label_b
+        self.wins_a = wins_a
+        self.wins_b = wins_b
+        self.draws = draws
+        self.avg_time_a = avg_time_a
+        self.avg_time_b = avg_time_b
+        self.n_games = n_games
 
 
 def time_strategy(strat):
-    times: List[float] = []
+    times = []
     def wrapped(state):
         t0 = time.perf_counter()
         m = strat(state)
@@ -47,21 +44,29 @@ def time_strategy(strat):
 
 def run_match(factory_a, factory_b, label_a, label_b,
               n_games=10, max_turns=300, seed_base=0):
-    wins_a = wins_b = draws = 0
+    wins_a = 0
+    wins_b = 0
+    draws = 0
     times_a, times_b = [], []
     for g in range(n_games):
         if g % 2 == 0:
-            sa = time_strategy(factory_a()); sb = time_strategy(factory_b())
+            sa = time_strategy(factory_a())
+            sb = time_strategy(factory_b())
             p1, p2, a_player = sa, sb, P1
         else:
-            sb = time_strategy(factory_b()); sa = time_strategy(factory_a())
+            sb = time_strategy(factory_b())
+            sa = time_strategy(factory_a())
             p1, p2, a_player = sb, sa, P2
         final = play_game(p1, p2, on_render=lambda _: None,
                           show_intermediate=False, max_turns=max_turns)
-        times_a.extend(sa._times); times_b.extend(sb._times)
-        if final.winner == a_player: wins_a += 1
-        elif final.winner == "draw": draws += 1
-        else: wins_b += 1
+        times_a.extend(sa._times)
+        times_b.extend(sb._times)
+        if final.winner == a_player:
+            wins_a += 1
+        elif final.winner == "draw":
+            draws += 1
+        else:
+            wins_b += 1
     return MatchResult(
         label_a=label_a, label_b=label_b,
         wins_a=wins_a, wins_b=wins_b, draws=draws,
@@ -193,17 +198,25 @@ def main():
 
     t0 = time.time()
     all_results = {}
-    if args.exp in (None, "A"): all_results["A"] = experiment_A(args.quick)
-    if args.exp in (None, "B"): all_results["B"] = experiment_B(args.quick)
-    if args.exp in (None, "C"): all_results["C"] = experiment_C(args.quick)
-    if args.exp in (None, "D"): all_results["D"] = experiment_D(args.quick)
+    if args.exp in (None, "A"):
+        all_results["A"] = experiment_A(args.quick)
+    if args.exp in (None, "B"):
+        all_results["B"] = experiment_B(args.quick)
+    if args.exp in (None, "C"):
+        all_results["C"] = experiment_C(args.quick)
+    if args.exp in (None, "D"):
+        all_results["D"] = experiment_D(args.quick)
     elapsed = time.time() - t0
 
     print(f"\n\n{'='*70}\nSUMMARY ({elapsed:.0f}s total)\n{'='*70}")
-    if "A" in all_results: print_table("Experiment A — rollout policy", all_results["A"])
-    if "B" in all_results: print_table("Experiment B — N", all_results["B"])
-    if "C" in all_results: print_table("Experiment C — C", all_results["C"])
-    if "D" in all_results: print_table("Experiment D — max_children", all_results["D"])
+    if "A" in all_results:
+        print_table("Experiment A -- rollout policy", all_results["A"])
+    if "B" in all_results:
+        print_table("Experiment B -- N", all_results["B"])
+    if "C" in all_results:
+        print_table("Experiment C -- C", all_results["C"])
+    if "D" in all_results:
+        print_table("Experiment D -- max_children", all_results["D"])
     return 0
 
 

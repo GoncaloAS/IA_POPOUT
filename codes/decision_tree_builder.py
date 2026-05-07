@@ -1,43 +1,39 @@
-"""ID3 decision tree learner with discretisation, prediction, and visualisation.
+"""Aprendizagem da arvore de decisao ID3 com discretizacao, predicao e visualizacao.
 
-Implementation from scratch (no scikit-learn). pandas/numpy used only for
-data handling, as permitted by the assignment.
+Implementacao de raiz (sem scikit-learn). pandas/numpy sao usados apenas
+para manipulacao de dados, conforme permitido pelo enunciado.
 """
-
-from __future__ import annotations
 
 import math
 import re
 from collections import Counter
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
 
-@dataclass
 class Node:
-    feature: Optional[str] = None
-    children: Dict[Any, "Node"] = field(default_factory=dict)
-    label: Optional[Any] = None
-    n_samples: int = 0
-    class_counts: Dict[Any, int] = field(default_factory=dict)
+    def __init__(self, feature=None, children=None, label=None, n_samples=0, class_counts=None):
+        self.feature = feature
+        self.children = children if children is not None else {}
+        self.label = label
+        self.n_samples = n_samples
+        self.class_counts = class_counts if class_counts is not None else {}
 
     @property
-    def is_leaf(self) -> bool:
+    def is_leaf(self):
         return self.label is not None
 
-    def __repr__(self) -> str:
+    def __repr__(self):
         if self.is_leaf:
             return f"Leaf(label={self.label!r}, n={self.n_samples})"
         return f"Node(feature={self.feature!r}, |children|={len(self.children)})"
 
 
 # --------------------------------------------------------------------------
-# Information theory
+# Teoria da informacao
 # --------------------------------------------------------------------------
-def entropy(y: pd.Series) -> float:
+def entropy(y):
     if len(y) == 0:
         return 0.0
     counts = Counter(y)
@@ -45,7 +41,7 @@ def entropy(y: pd.Series) -> float:
     return -sum((c / total) * math.log2(c / total) for c in counts.values() if c)
 
 
-def information_gain(X: pd.DataFrame, y: pd.Series, feature: str) -> float:
+def information_gain(X, y, feature):
     base = entropy(y)
     total = len(y)
     if total == 0:
@@ -59,29 +55,22 @@ def information_gain(X: pd.DataFrame, y: pd.Series, feature: str) -> float:
 
 
 # --------------------------------------------------------------------------
-# ID3 (4 base cases per Russell & Norvig)
+# ID3 (4 casos base, segundo Russell & Norvig)
 # --------------------------------------------------------------------------
-def id3(
-    X: pd.DataFrame,
-    y: pd.Series,
-    features: List[str],
-    parent_majority: Optional[Any] = None,
-    max_depth: Optional[int] = None,
-    depth: int = 0,
-) -> Node:
+def id3(X, y, features, parent_majority=None, max_depth=None, depth=0):
     counts = dict(Counter(y))
     n_samples = len(y)
 
-    # Empty subset → fall back to parent's majority class.
+    # Subconjunto vazio -> usa a classe maioritaria do pai
     if n_samples == 0:
         return Node(label=parent_majority, n_samples=0)
 
-    # Pure subset → leaf with that class.
+    # Subconjunto puro -> folha com essa classe
     if len(counts) == 1:
         only_class = next(iter(counts))
         return Node(label=only_class, n_samples=n_samples, class_counts=counts)
 
-    # Out of features (or depth cap) → majority leaf.
+    # Sem features (ou limite de profundidade) -> folha pela maioria
     if not features or (max_depth is not None and depth >= max_depth):
         majority = max(counts.items(), key=lambda kv: kv[1])[0]
         return Node(label=majority, n_samples=n_samples, class_counts=counts)
@@ -89,7 +78,7 @@ def id3(
     gains = [(f, information_gain(X, y, f)) for f in features]
     best_feature, best_gain = max(gains, key=lambda x: x[1])
 
-    # No attribute separates anything: noise/ambiguity → majority leaf.
+    # Nenhum atributo separa nada: ruido/ambiguidade -> folha pela maioria
     if best_gain <= 0:
         majority = max(counts.items(), key=lambda kv: kv[1])[0]
         return Node(label=majority, n_samples=n_samples, class_counts=counts)
@@ -109,22 +98,22 @@ def id3(
     return node
 
 
-def predict(tree: Node, sample: Dict[str, Any]) -> Any:
+def predict(tree, sample):
     node = tree
     while not node.is_leaf:
         value = sample.get(node.feature)
         if value in node.children:
             node = node.children[value]
         else:
-            # Unseen value at this node: vote among descendant leaves.
+            # Valor nunca visto neste no: vota entre as folhas descendentes
             return _majority_label(node)
     return node.label
 
 
-def _majority_label(node: Node) -> Any:
+def _majority_label(node):
     if node.is_leaf:
         return node.label
-    counts: Counter = Counter()
+    counts = Counter()
     stack = [node]
     while stack:
         n = stack.pop()
@@ -137,11 +126,11 @@ def _majority_label(node: Node) -> Any:
     return max(counts.items(), key=lambda kv: kv[1])[0]
 
 
-def predict_batch(tree: Node, X: pd.DataFrame) -> List[Any]:
+def predict_batch(tree, X):
     return [predict(tree, row.to_dict()) for _, row in X.iterrows()]
 
 
-def accuracy(y_true, y_pred) -> float:
+def accuracy(y_true, y_pred):
     y_true = list(y_true)
     y_pred = list(y_pred)
     if not y_true:
@@ -150,18 +139,16 @@ def accuracy(y_true, y_pred) -> float:
 
 
 # --------------------------------------------------------------------------
-# Discretisation
+# Discretizacao
 # --------------------------------------------------------------------------
-@dataclass
 class DiscretizationFit:
-    strategy: str
-    edges: Dict[str, np.ndarray]
-    labels: Dict[str, List[str]]
+    def __init__(self, strategy, edges, labels):
+        self.strategy = strategy
+        self.edges = edges
+        self.labels = labels
 
 
-def fit_discretizer_equal_width(
-    X: pd.DataFrame, columns: List[str], n_bins: int = 3,
-) -> DiscretizationFit:
+def fit_discretizer_equal_width(X, columns, n_bins=3):
     edges, labels = {}, {}
     for col in columns:
         col_min, col_max = float(X[col].min()), float(X[col].max())
@@ -174,9 +161,7 @@ def fit_discretizer_equal_width(
     return DiscretizationFit("equal_width", edges, labels)
 
 
-def fit_discretizer_equal_frequency(
-    X: pd.DataFrame, columns: List[str], n_bins: int = 3,
-) -> DiscretizationFit:
+def fit_discretizer_equal_frequency(X, columns, n_bins=3):
     edges, labels = {}, {}
     for col in columns:
         quantiles = np.linspace(0, 1, n_bins + 1)
@@ -186,10 +171,8 @@ def fit_discretizer_equal_frequency(
     return DiscretizationFit("equal_frequency", edges, labels)
 
 
-def fit_discretizer_supervised(
-    X: pd.DataFrame, y: pd.Series, columns: List[str],
-) -> DiscretizationFit:
-    """Binary split per attribute using the threshold that maximises IG."""
+def fit_discretizer_supervised(X, y, columns):
+    # Split binario por atributo no threshold que maximiza o IG
     edges, labels = {}, {}
     for col in columns:
         values = X[col].values
@@ -197,7 +180,8 @@ def fit_discretizer_supervised(
         candidates = (sorted_vals[:-1] + sorted_vals[1:]) / 2
         base_h = entropy(y)
         n = len(y)
-        best_t, best_gain = None, -1.0
+        best_t = None
+        best_gain = -1.0
         for t in candidates:
             left, right = y[values <= t], y[values > t]
             if len(left) == 0 or len(right) == 0:
@@ -214,7 +198,7 @@ def fit_discretizer_supervised(
     return DiscretizationFit("supervised", edges, labels)
 
 
-def transform_discretizer(X: pd.DataFrame, fit: DiscretizationFit) -> pd.DataFrame:
+def transform_discretizer(X, fit):
     out = X.copy()
     for col, e in fit.edges.items():
         if col not in out.columns:
@@ -226,15 +210,15 @@ def transform_discretizer(X: pd.DataFrame, fit: DiscretizationFit) -> pd.DataFra
 
 
 # --------------------------------------------------------------------------
-# Visualisation
+# Visualizacao
 # --------------------------------------------------------------------------
-def render_tree_text(tree: Node) -> str:
-    lines: List[str] = []
+def render_tree_text(tree):
+    lines = []
     _render_text_recursive(tree, lines, prefix="", value_label=None)
     return "\n".join(lines)
 
 
-def _render_text_recursive(node: Node, lines: List[str], prefix: str, value_label) -> None:
+def _render_text_recursive(node, lines, prefix, value_label):
     head = f"{prefix}└─ [{value_label}] " if value_label is not None else ""
     if node.is_leaf:
         counts_str = " " + str(dict(node.class_counts)) if node.class_counts else ""
@@ -246,17 +230,17 @@ def _render_text_recursive(node: Node, lines: List[str], prefix: str, value_labe
         _render_text_recursive(child, lines, prefix=next_prefix, value_label=val)
 
 
-def render_tree_matplotlib(tree: Node, *, figsize=(12, 6)):
+def render_tree_matplotlib(tree, figsize=(12, 6)):
     import matplotlib.pyplot as plt
 
-    positions: Dict[int, Tuple[float, float]] = {}
-    leaves: List[Node] = []
+    positions = {}
+    leaves = []
     _collect_leaves(tree, leaves)
     n_leaves = max(1, len(leaves))
 
     leaf_idx = [0]
 
-    def assign(node: Node, depth: int) -> float:
+    def assign(node, depth):
         if node.is_leaf:
             x = leaf_idx[0] / max(1, n_leaves - 1)
             leaf_idx[0] += 1
@@ -272,7 +256,7 @@ def render_tree_matplotlib(tree: Node, *, figsize=(12, 6)):
     fig, ax = plt.subplots(figsize=figsize)
     ax.axis("off")
 
-    def draw(node: Node, parent_pos=None, edge_label=None):
+    def draw(node, parent_pos=None, edge_label=None):
         x, y = positions[id(node)]
         if parent_pos is not None:
             px, py = parent_pos
@@ -299,7 +283,7 @@ def render_tree_matplotlib(tree: Node, *, figsize=(12, 6)):
     return fig
 
 
-def _collect_leaves(node: Node, out: List[Node]) -> None:
+def _collect_leaves(node, out):
     if node.is_leaf:
         out.append(node)
     else:
@@ -307,8 +291,8 @@ def _collect_leaves(node: Node, out: List[Node]) -> None:
             _collect_leaves(c, out)
 
 
-def tree_size(tree: Node) -> Dict[str, int]:
-    leaves: List[Node] = []
+def tree_size(tree):
+    leaves = []
     _collect_leaves(tree, leaves)
     return {
         "nodes": _count_nodes(tree),
@@ -317,32 +301,32 @@ def tree_size(tree: Node) -> Dict[str, int]:
     }
 
 
-def _count_nodes(node: Node) -> int:
+def _count_nodes(node):
     if node.is_leaf:
         return 1
     return 1 + sum(_count_nodes(c) for c in node.children.values())
 
 
-def _max_depth(node: Node) -> int:
+def _max_depth(node):
     if node.is_leaf:
         return 0
     return 1 + max(_max_depth(c) for c in node.children.values())
 
 
 # --------------------------------------------------------------------------
-# Tree as a playable strategy
+# Arvore como estrategia jogavel
 # --------------------------------------------------------------------------
 _MOVE_RE = re.compile(r"^([dp])([0-6])$")
 
 
-def encode_state_for_tree(state) -> Dict[str, Any]:
+def encode_state_for_tree(state):
     flat = state.board.reshape(-1).tolist()
-    features: Dict[str, Any] = {f"s{i}": int(flat[i]) for i in range(42)}
+    features = {f"s{i}": int(flat[i]) for i in range(42)}
     features["to_play"] = int(state.player_to_move)
     return features
 
 
-def decode_move_string(move_str: str):
+def decode_move_string(move_str):
     from popout import Move
     if not isinstance(move_str, str):
         return None
@@ -369,12 +353,10 @@ def _fallback_legal_move(state, predicted):
     return legal[0]
 
 
-def tree_strategy(tree: Node) -> Callable:
-    """Return a callable usable as a play_game strategy.
-
-    Decodes the tree's predicted move string and falls back to a legal move
-    of the same kind (drop/pop) preferring central columns when illegal.
-    """
+def tree_strategy(tree):
+    # Devolve uma callable usavel como estrategia de play_game.
+    # Descodifica a jogada prevista pela arvore e, se for ilegal,
+    # cai numa jogada legal do mesmo tipo (drop/pop) preferindo o centro.
     from popout import legal_moves
 
     def strat(state):

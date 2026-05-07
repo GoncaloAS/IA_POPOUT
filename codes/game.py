@@ -1,15 +1,12 @@
-"""CLI game loop and built-in strategies (human, random, scripted).
+"""Loop de jogo CLI e estrategias built-in (humano, aleatoria, scripted).
 
-`play_game(p1, p2)` is the central abstraction: each player is a callable
-state -> Move|str ('resign'|'draw'). Same loop serves all three game scenarios
-(HvH, HvC, CvC) only by changing the arguments.
+`play_game(p1, p2)` e a abstracao central: cada jogador e uma callable
+state -> Move|str ('resign'|'draw'). O mesmo loop serve os tres modos
+(HvH, HvC, CvC), mudando apenas os argumentos.
 """
-
-from __future__ import annotations
 
 import os
 import random
-from typing import Callable, Optional, Union
 
 from popout import (
     COLS, EMPTY, Move, P1, P2, State,
@@ -18,14 +15,10 @@ from popout import (
 
 TREE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "decision_tree.pkl")
 
-# Difficulty presets: (n_simulations, rollout, tactical_root). Mirror gui.py.
+# Predefinicoes de dificuldade: (n_simulations, rollout, tactical_root)
 EASY = (100, "random", False)
 MEDIUM = (400, "heuristic_win", True)
 HARD = (800, "heuristic_win", True)
-
-Decision = Union[Move, str]
-Strategy = Callable[[State], Decision]
-Renderer = Callable[[str], None]
 
 
 HELP_TEXT = """\
@@ -40,10 +33,11 @@ Commands:
 
 
 class ParseError(Exception):
-    """Raised on invalid input; the CLI re-prompts without crashing."""
+    # Lancada em input invalido; o CLI pede de novo sem rebentar
+    pass
 
 
-def format_state(state: State) -> str:
+def format_state(state):
     header = " " + "".join(str(c) for c in range(COLS))
     body = "\n".join(" " + line for line in render(state.board).split("\n"))
     glyph = {P1: "X", P2: "O"}
@@ -56,7 +50,7 @@ def format_state(state: State) -> str:
     return f"{header}\n{body}\n{footer}"
 
 
-def parse_human_input(text: str, state: State) -> Decision:
+def parse_human_input(text, state):
     t = text.strip().lower()
     if t == "":
         raise ParseError("Empty input. Type '?' for help.")
@@ -65,7 +59,7 @@ def parse_human_input(text: str, state: State) -> Decision:
     if t == "draw":
         if can_claim_repetition_draw(state):
             return "draw"
-        raise ParseError("Triple repetition not reached — cannot claim draw.")
+        raise ParseError("Triple repetition not reached -- cannot claim draw.")
     if t in ("?", "help"):
         raise ParseError(HELP_TEXT)
     if len(t) == 1 and t.isdigit():
@@ -82,12 +76,7 @@ def parse_human_input(text: str, state: State) -> Decision:
     raise ParseError(f"Invalid input: {text!r}. Type '?' for help.")
 
 
-def human_strategy(
-    state: State,
-    *,
-    input_fn: Callable[[str], str] = input,
-    output_fn: Renderer = print,
-) -> Decision:
+def human_strategy(state, input_fn=input, output_fn=print):
     while True:
         try:
             raw = input_fn(f"P{state.player_to_move}> ")
@@ -106,10 +95,11 @@ def human_strategy(
         return decision
 
 
-def random_strategy(rng: Optional[random.Random] = None) -> Strategy:
-    rng = rng or random.Random()
+def random_strategy(rng=None):
+    if rng is None:
+        rng = random.Random()
 
-    def strat(state: State) -> Decision:
+    def strat(state):
         moves = legal_moves(state)
         if not moves:
             return "resign"
@@ -118,23 +108,16 @@ def random_strategy(rng: Optional[random.Random] = None) -> Strategy:
     return strat
 
 
-def scripted_strategy(decisions) -> Strategy:
+def scripted_strategy(decisions):
     it = iter(decisions)
 
-    def strat(state: State) -> Decision:
+    def strat(state):
         return next(it)
 
     return strat
 
 
-def play_game(
-    p1: Strategy,
-    p2: Strategy,
-    *,
-    on_render: Renderer = print,
-    max_turns: int = 300,
-    show_intermediate: bool = True,
-) -> State:
+def play_game(p1, p2, on_render=print, max_turns=300, show_intermediate=True):
     state = initial_state()
     strategies = {P1: p1, P2: p2}
     if show_intermediate:
@@ -179,15 +162,15 @@ def play_game(
     return state
 
 
-def _announce(strat: Strategy, label: str) -> Strategy:
-    """Wrap an AI strategy so the CLI prints a 'thinking...' cue."""
-    def w(state: State) -> Decision:
+def _announce(strat, label):
+    # Embrulha uma estrategia AI para o CLI mostrar "thinking..."
+    def w(state):
         print(f"[{label} thinking...]", flush=True)
         return strat(state)
     return w
 
 
-def _make_mcts(preset, label: str, seed: Optional[int] = None) -> Strategy:
+def _make_mcts(preset, label, seed=None):
     from mcts import mcts_strategy
     n_sims, rollout, tactical = preset
     rng = random.Random(seed)
@@ -196,7 +179,7 @@ def _make_mcts(preset, label: str, seed: Optional[int] = None) -> Strategy:
     return _announce(strat, label)
 
 
-def _make_tree() -> Strategy:
+def _make_tree():
     import pickle
     from decision_tree_builder import tree_strategy
     with open(TREE_PATH, "rb") as f:
@@ -208,11 +191,11 @@ def _build_modes():
     modes = [
         ("Human vs Human",
          lambda: (human_strategy, human_strategy)),
-        ("Human vs MCTS — Easy",
+        ("Human vs MCTS -- Easy",
          lambda: (human_strategy, _make_mcts(EASY, "MCTS-Easy"))),
-        ("Human vs MCTS — Medium",
+        ("Human vs MCTS -- Medium",
          lambda: (human_strategy, _make_mcts(MEDIUM, "MCTS-Medium"))),
-        ("Human vs MCTS — Hard",
+        ("Human vs MCTS -- Hard",
          lambda: (human_strategy, _make_mcts(HARD, "MCTS-Hard"))),
         ("MCTS vs MCTS",
          lambda: (_make_mcts(MEDIUM, "MCTS-1"),
@@ -228,14 +211,14 @@ def _build_modes():
     return modes
 
 
-def _print_menu(modes) -> None:
-    print("\nPopOut CLI — choose mode:")
+def _print_menu(modes):
+    print("\nPopOut CLI -- choose mode:")
     for i, (label, _) in enumerate(modes):
         print(f"  {i+1}) {label}")
     print("  q) quit")
 
 
-def _read_mode_choice(modes) -> Optional[int]:
+def _read_mode_choice(modes):
     while True:
         try:
             raw = input("Mode> ").strip().lower()
@@ -250,7 +233,7 @@ def _read_mode_choice(modes) -> Optional[int]:
         print(f"Invalid choice. Pick 1-{len(modes)} or 'q'.")
 
 
-def main() -> None:  # pragma: no cover
+def main():
     modes = _build_modes()
     if not os.path.exists(TREE_PATH):
         print("(decision_tree.pkl not found - Tree modes unavailable. "
@@ -274,5 +257,5 @@ def main() -> None:  # pragma: no cover
             return
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     main()

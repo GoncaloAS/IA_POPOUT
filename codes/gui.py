@@ -1,11 +1,9 @@
-"""Pygame GUI for PopOut: clickable board, drop/pop buttons, mode menu.
+"""GUI em pygame para o PopOut: tabuleiro clicavel, botoes drop/pop, menu de modos.
 
-Modes available:
+Modos disponiveis:
     Human vs Human, Human vs MCTS (Easy/Medium/Hard), MCTS vs MCTS,
-    and Human vs Tree / MCTS vs Tree if decision_tree.pkl exists.
+    e Human vs Tree / MCTS vs Tree quando existe decision_tree.pkl.
 """
-
-from __future__ import annotations
 
 import os
 import sys
@@ -22,7 +20,7 @@ from popout import (  # noqa: E402
 )
 
 
-# Layout constants (pixels).
+# Constantes de layout (em pixeis)
 CELL = 90
 PAD = 12
 HEADER = 70
@@ -160,7 +158,8 @@ def draw_modal(screen, font_big, font_small, lines, button_labels):
         screen.blit(text, text.get_rect(centerx=box.centerx, top=y))
         y += 36 if i == 0 else 26
     buttons = []
-    btn_w = 160; gap = 18
+    btn_w = 160
+    gap = 18
     total = len(button_labels) * btn_w + (len(button_labels) - 1) * gap
     start_x = box.centerx - total // 2
     btn_y = box.bottom - 56
@@ -175,7 +174,7 @@ def draw_modal(screen, font_big, font_small, lines, button_labels):
 
 def draw_endgame_card(screen, font_big, font_small, title, subtitle, button_labels,
                       glyph_color):
-    """Compact card in the top status/header strip, leaves the board fully visible."""
+    # Cartao compacto na faixa de cima do ecra; deixa o tabuleiro todo visivel
     margin_x = 20
     box = pygame.Rect(margin_x, 6, WIDTH - 2 * margin_x, STATUS + HEADER - 12)
     card = pygame.Surface((box.width, box.height), pygame.SRCALPHA)
@@ -192,7 +191,9 @@ def draw_endgame_card(screen, font_big, font_small, title, subtitle, button_labe
     screen.blit(sub_surf, sub_surf.get_rect(midleft=(glyph_cx + 18, glyph_cy + 22)))
 
     buttons = []
-    btn_w = 130; btn_h = 34; gap = 12
+    btn_w = 130
+    btn_h = 34
+    gap = 12
     total = len(button_labels) * btn_w + (len(button_labels) - 1) * gap
     start_x = box.right - total - 14
     btn_y = box.centery - btn_h // 2
@@ -206,7 +207,7 @@ def draw_endgame_card(screen, font_big, font_small, title, subtitle, button_labe
 
 
 class StrategyWorker:
-    """Runs a blocking strategy (e.g. MCTS) on a worker thread to keep UI responsive."""
+    # Corre uma estrategia bloqueante (e.g. MCTS) numa thread para nao travar a UI
 
     def __init__(self, strategy_factory):
         self._factory = strategy_factory
@@ -262,7 +263,7 @@ def make_tree_factory(tree_path):
     return factory
 
 
-# Difficulty presets: (n_simulations, rollout, tactical_root).
+# Predefinicoes de dificuldade: (n_simulations, rollout, tactical_root)
 EASY = (100, "random", False)
 MEDIUM = (400, "heuristic_win", True)
 HARD = (800, "heuristic_win", True)
@@ -271,9 +272,9 @@ HARD = (800, "heuristic_win", True)
 def _build_modes():
     modes = [
         ("Human vs Human", lambda: ("human", "human")),
-        ("Human vs MCTS — Easy", lambda: ("human", make_mcts_factory(*EASY))),
-        ("Human vs MCTS — Medium", lambda: ("human", make_mcts_factory(*MEDIUM))),
-        ("Human vs MCTS — Hard", lambda: ("human", make_mcts_factory(*HARD))),
+        ("Human vs MCTS -- Easy", lambda: ("human", make_mcts_factory(*EASY))),
+        ("Human vs MCTS -- Medium", lambda: ("human", make_mcts_factory(*MEDIUM))),
+        ("Human vs MCTS -- Hard", lambda: ("human", make_mcts_factory(*HARD))),
         ("MCTS vs MCTS",
          lambda: (make_mcts_factory(*MEDIUM),
                   make_mcts_factory(*MEDIUM, seed=99))),
@@ -294,11 +295,12 @@ MODES = _build_modes()
 
 def draw_menu(screen, font_big, font_small, mouse_pos):
     screen.fill((10, 14, 28))
-    title = font_big.render("PopOut — choose mode", True, TEXT)
+    title = font_big.render("PopOut -- choose mode", True, TEXT)
     screen.blit(title, title.get_rect(center=(WIDTH // 2, 50)))
 
     n_modes = len(MODES)
-    btn_h = 48; gap = 10
+    btn_h = 48
+    gap = 10
     start_y = 100
     available = HEIGHT - start_y - 60
     if n_modes * btn_h + (n_modes - 1) * gap > available:
@@ -321,9 +323,9 @@ def draw_menu(screen, font_big, font_small, mouse_pos):
     return rects
 
 
-def run() -> int:
+def run():
     pygame.init()
-    pygame.display.set_caption("PopOut — IA 2025/2026")
+    pygame.display.set_caption("PopOut -- IA 2025/2026")
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     clock = pygame.time.Clock()
     font_big = pygame.font.SysFont("Helvetica", 28, bold=True)
@@ -339,7 +341,7 @@ def run() -> int:
     last_winner = None
     show_endgame_modal = False
     endgame_time = None
-    WIN_REVEAL_DELAY = 1.5  # seconds the final move stays visible before the card
+    WIN_REVEAL_DELAY = 1.5  # segundos que a jogada final fica visivel antes do cartao
 
     def reset_game():
         nonlocal state, last_winner, show_endgame_modal, endgame_time
@@ -450,12 +452,12 @@ def run() -> int:
                             else:
                                 in_menu = True
                                 workers = {P1: None, P2: None}
-                            time.sleep(0.15)  # simple debounce
+                            time.sleep(0.15)  # debounce simples
                             break
 
         pygame.display.flip()
         clock.tick(60)
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     sys.exit(run())

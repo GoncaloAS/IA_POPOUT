@@ -1,18 +1,15 @@
-"""Iris pipeline: discretise, train ID3, evaluate, visualise.
+"""Pipeline Iris: discretizar, treinar ID3, avaliar e visualizar.
 
-Reproduces the warm-up dataset of §4.2.1 (1) of the assignment.
+Reproduz o dataset de aquecimento da §4.2.1 (1) do enunciado.
 
-Usage:
+Uso:
     python iris_test.py
-    python iris_test.py --quick    # skip 5-fold CV
+    python iris_test.py --quick    # salta o 5-fold CV
 """
-
-from __future__ import annotations
 
 import argparse
 import os
 import sys
-from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -33,7 +30,7 @@ from decision_tree_builder import (
 IRIS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "iris.csv")
 
 
-def load_iris() -> Tuple[pd.DataFrame, pd.Series, List[str]]:
+def load_iris():
     df = pd.read_csv(IRIS_PATH).drop(columns=["ID"])
     feats = [c for c in df.columns if c != "class"]
     return df[feats], df["class"], feats
@@ -59,7 +56,7 @@ def confusion_matrix(y_true, y_pred, classes=None):
     return classes, M
 
 
-def kfold_indices(n: int, k: int, seed: int = 0):
+def kfold_indices(n, k, seed=0):
     rng = np.random.default_rng(seed)
     idx = np.arange(n)
     rng.shuffle(idx)
@@ -157,7 +154,7 @@ def main():
     print(render_tree_text(best["tree"]))
     print()
 
-    # Save iris tree (used by the notebook).
+    # Guarda a arvore Iris (usada pelo notebook)
     import pickle
     iris_pkl = os.path.join(os.path.dirname(os.path.abspath(__file__)), "iris_tree.pkl")
     with open(iris_pkl, "wb") as f:

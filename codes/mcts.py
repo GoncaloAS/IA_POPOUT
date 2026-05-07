@@ -1,14 +1,12 @@
-"""Monte Carlo Tree Search with UCB1 selection.
+"""Monte Carlo Tree Search com selecao UCB1.
 
-Convention for U/N: U(n) counts wins from the perspective of the player who
-chose the move leading to n (i.e. parent.player_to_move). Draws contribute 0.5.
+Convencao de U/N: U(n) conta vitorias do ponto de vista do jogador
+que escolheu a jogada que levou a n (i.e. parent.player_to_move).
+Empates contam 0.5.
 """
-
-from __future__ import annotations
 
 import math
 import random
-from typing import Callable, Dict, List, Optional, Union
 
 from popout import COLS, Move, State, apply_move, legal_moves
 
@@ -20,7 +18,7 @@ CENTER = COLS // 2
 COLUMN_PRIORITY = sorted(range(COLS), key=lambda c: abs(c - CENTER))
 
 
-def _ordered_legal_moves(state: State, max_children: Optional[int]) -> List[Move]:
+def _ordered_legal_moves(state, max_children):
     moves = legal_moves(state)
     if max_children is None or len(moves) <= max_children:
         return moves
@@ -32,37 +30,25 @@ def _ordered_legal_moves(state: State, max_children: Optional[int]) -> List[Move
 
 
 class Node:
-    __slots__ = (
-        "state", "parent", "move_in", "children", "untried_moves", "N", "U",
-    )
-
-    def __init__(
-        self,
-        state: State,
-        parent: Optional["Node"] = None,
-        move_in: Optional[Move] = None,
-        max_children: Optional[int] = None,
-    ) -> None:
+    def __init__(self, state, parent=None, move_in=None, max_children=None):
         self.state = state
         self.parent = parent
         self.move_in = move_in
-        self.children: Dict[Move, "Node"] = {}
-        self.untried_moves: List[Move] = list(
-            _ordered_legal_moves(state, max_children)
-        )
-        self.N: int = 0
-        self.U: float = 0.0
+        self.children = {}
+        self.untried_moves = list(_ordered_legal_moves(state, max_children))
+        self.N = 0
+        self.U = 0.0
 
-    def is_terminal(self) -> bool:
+    def is_terminal(self):
         return self.state.winner is not None
 
-    def is_fully_expanded(self) -> bool:
+    def is_fully_expanded(self):
         return len(self.untried_moves) == 0 and len(self.children) > 0
 
-    def best_child(self, c: float) -> "Node":
+    def best_child(self, c):
         log_N_parent = math.log(self.N) if self.N > 0 else 0.0
 
-        def ucb1(child: "Node") -> float:
+        def ucb1(child):
             if child.N == 0:
                 return math.inf
             exploit = child.U / child.N
@@ -71,24 +57,19 @@ class Node:
 
         return max(self.children.values(), key=ucb1)
 
-    def expand(
-        self,
-        rng: random.Random,
-        max_children: Optional[int] = None,
-    ) -> "Node":
+    def expand(self, rng, max_children=None):
         idx = rng.randrange(len(self.untried_moves))
         move = self.untried_moves.pop(idx)
         next_state = apply_move(self.state, move)
-        child = Node(next_state, parent=self, move_in=move,
-                     max_children=max_children)
+        child = Node(next_state, parent=self, move_in=move, max_children=max_children)
         self.children[move] = child
         return child
 
-    def most_visited_child(self) -> "Node":
+    def most_visited_child(self):
         return max(self.children.values(), key=lambda c: c.N)
 
 
-def _find_winning_move(state: State, moves: List[Move]) -> Optional[Move]:
+def _find_winning_move(state, moves):
     me = state.player_to_move
     for m in moves:
         ns = apply_move(state, m)
@@ -97,8 +78,8 @@ def _find_winning_move(state: State, moves: List[Move]) -> Optional[Move]:
     return None
 
 
-def _move_is_safe(state: State, m: Move) -> bool:
-    """A move is safe if the opponent has no immediate winning reply."""
+def _move_is_safe(state, m):
+    # Uma jogada e "segura" se o adversario nao tiver resposta vencedora imediata
     ns = apply_move(state, m)
     if ns.winner is not None:
         return True
@@ -110,12 +91,10 @@ def _move_is_safe(state: State, m: Move) -> bool:
     return True
 
 
-def find_forced_win(state: State, depth: int = 2) -> Optional[Move]:
-    """Search for a forced winning move within `depth` plies.
-
-    depth=1: immediate win.
-    depth=2: move that wins regardless of opponent's reply (forks).
-    """
+def find_forced_win(state, depth=2):
+    # Procura uma vitoria forcada dentro de `depth` plies
+    # depth=1: vitoria imediata
+    # depth=2: jogada que ganha qualquer que seja a resposta do adversario (forks)
     if depth < 1 or state.winner is not None:
         return None
 
@@ -153,11 +132,7 @@ def find_forced_win(state: State, depth: int = 2) -> Optional[Move]:
     return None
 
 
-def random_playout(
-    state: State,
-    rng: random.Random,
-    max_depth: int = ROLLOUT_MAX_DEPTH,
-) -> Union[int, str]:
+def random_playout(state, rng, max_depth=ROLLOUT_MAX_DEPTH):
     depth = 0
     while state.winner is None and depth < max_depth:
         moves = legal_moves(state)
@@ -169,12 +144,8 @@ def random_playout(
     return state.winner if state.winner is not None else "draw"
 
 
-def heuristic_win_playout(
-    state: State,
-    rng: random.Random,
-    max_depth: int = ROLLOUT_MAX_DEPTH,
-) -> Union[int, str]:
-    """Take immediate wins; otherwise random."""
+def heuristic_win_playout(state, rng, max_depth=ROLLOUT_MAX_DEPTH):
+    # Joga vitoria imediata se existir; caso contrario, aleatorio
     depth = 0
     while state.winner is None and depth < max_depth:
         moves = legal_moves(state)
@@ -187,12 +158,8 @@ def heuristic_win_playout(
     return state.winner if state.winner is not None else "draw"
 
 
-def heuristic_block_playout(
-    state: State,
-    rng: random.Random,
-    max_depth: int = ROLLOUT_MAX_DEPTH,
-) -> Union[int, str]:
-    """Take immediate wins; avoid moves that allow opponent to win next."""
+def heuristic_block_playout(state, rng, max_depth=ROLLOUT_MAX_DEPTH):
+    # Joga vitoria imediata; caso contrario evita jogadas que deixam o adversario ganhar
     depth = 0
     while state.winner is None and depth < max_depth:
         moves = legal_moves(state)
@@ -218,8 +185,8 @@ ROLLOUTS = {
 }
 
 
-def backprop(leaf: Node, winner: Union[int, str]) -> None:
-    node: Optional[Node] = leaf
+def backprop(leaf, winner):
+    node = leaf
     while node is not None:
         node.N += 1
         if node.parent is not None:
@@ -231,16 +198,9 @@ def backprop(leaf: Node, winner: Union[int, str]) -> None:
         node = node.parent
 
 
-def mcts_search(
-    root_state: State,
-    n_simulations: int = DEFAULT_N_SIMULATIONS,
-    c: float = DEFAULT_C,
-    rollout: str = "random",
-    max_children: Optional[int] = None,
-    tactical_root: bool = False,
-    tactical_depth: int = 2,
-    rng: Optional[random.Random] = None,
-) -> Optional[Move]:
+def mcts_search(root_state, n_simulations=DEFAULT_N_SIMULATIONS, c=DEFAULT_C,
+                rollout="random", max_children=None, tactical_root=False,
+                tactical_depth=2, rng=None):
     if root_state.winner is not None:
         return None
     moves = legal_moves(root_state)
@@ -249,20 +209,19 @@ def mcts_search(
     if len(moves) == 1:
         return moves[0]
 
-    # Cheap 2-ply tactical scan: catches forced wins (incl. winning pops)
-    # that random rollouts may statistically undervalue.
+    # Scan tactico de 2 plies: apanha vitorias forcadas (incluindo pops vencedores)
+    # que os rollouts aleatorios podem subvalorizar estatisticamente
     if tactical_root:
         forced = find_forced_win(root_state, depth=tactical_depth)
         if forced is not None:
             return forced
 
     if rollout not in ROLLOUTS:
-        raise ValueError(
-            f"invalid rollout: {rollout!r}. Choose from {list(ROLLOUTS)}."
-        )
+        raise ValueError(f"invalid rollout: {rollout!r}. Choose from {list(ROLLOUTS)}.")
     playout_fn = ROLLOUTS[rollout]
 
-    rng = rng or random.Random()
+    if rng is None:
+        rng = random.Random()
     root = Node(root_state, max_children=max_children)
 
     for _ in range(n_simulations):
@@ -277,18 +236,12 @@ def mcts_search(
     return root.most_visited_child().move_in
 
 
-def mcts_strategy(
-    n_simulations: int = DEFAULT_N_SIMULATIONS,
-    c: float = DEFAULT_C,
-    rollout: str = "random",
-    max_children: Optional[int] = None,
-    tactical_root: bool = False,
-    tactical_depth: int = 2,
-    rng: Optional[random.Random] = None,
-) -> Callable[[State], Move]:
-    rng = rng or random.Random()
+def mcts_strategy(n_simulations=DEFAULT_N_SIMULATIONS, c=DEFAULT_C, rollout="random",
+                  max_children=None, tactical_root=False, tactical_depth=2, rng=None):
+    if rng is None:
+        rng = random.Random()
 
-    def strat(state: State) -> Move:
+    def strat(state):
         move = mcts_search(
             state,
             n_simulations=n_simulations,

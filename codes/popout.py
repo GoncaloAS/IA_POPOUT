@@ -1,62 +1,69 @@
-"""PopOut game engine — variant of Connect-4 with pop moves.
+"""Motor do jogo PopOut — variante do Connect-4 com jogadas de pop.
 
-Rules implemented (Allen 2010):
-- Pop creating four-in-row for both players: pop player wins.
-- Full board with no legal pops: draw.
-- Triple state repetition: either player may declare draw.
+Regras (Allen 2010):
+- Pop que cria 4-em-linha para os dois jogadores: ganha quem fez o pop.
+- Tabuleiro cheio sem pops legais: empate.
+- Repeticao tripla do mesmo estado: qualquer jogador pode declarar empate.
 """
-
-from __future__ import annotations
-
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Union
 
 import numpy as np
 
-ROWS, COLS = 6, 7
-EMPTY, P1, P2 = 0, 1, 2
+ROWS = 6
+COLS = 7
+EMPTY = 0
+P1 = 1
+P2 = 2
 DIRECTIONS = [(0, 1), (1, 0), (1, 1), (1, -1)]
 WINNER_DRAW = "draw"
 
 
-@dataclass(frozen=True)
 class Move:
-    column: int
-    kind: str  # 'drop' or 'pop'
+    def __init__(self, column, kind):
+        if kind not in ("drop", "pop"):
+            raise ValueError(f"invalid kind: {kind!r}")
+        if not 0 <= column < COLS:
+            raise ValueError(f"column out of [0,{COLS-1}]: {column}")
+        self.column = column
+        self.kind = kind
 
-    def __post_init__(self) -> None:
-        if self.kind not in ("drop", "pop"):
-            raise ValueError(f"invalid kind: {self.kind!r}")
-        if not 0 <= self.column < COLS:
-            raise ValueError(f"column out of [0,{COLS-1}]: {self.column}")
+    def __eq__(self, other):
+        if not isinstance(other, Move):
+            return False
+        return self.column == other.column and self.kind == other.kind
 
-    def __str__(self) -> str:
+    def __hash__(self):
+        return hash((self.column, self.kind))
+
+    def __str__(self):
         return f"{self.kind}({self.column})"
 
+    def __repr__(self):
+        return f"Move({self.column}, {self.kind!r})"
 
-@dataclass(frozen=True)
+
 class State:
-    board: np.ndarray
-    player_to_move: int
-    history_counts: Dict[bytes, int] = field(default_factory=dict)
-    last_move: Optional[Move] = None
-    winner: Union[int, str, None] = None
+    def __init__(self, board, player_to_move, history_counts=None, last_move=None, winner=None):
+        self.board = board
+        self.player_to_move = player_to_move
+        self.history_counts = history_counts if history_counts is not None else {}
+        self.last_move = last_move
+        self.winner = winner
 
 
-def state_key(board: np.ndarray, player_to_move: int) -> bytes:
+def state_key(board, player_to_move):
     return board.tobytes() + bytes([player_to_move])
 
 
-def initial_state() -> State:
+def initial_state():
     board = np.zeros((ROWS, COLS), dtype=np.int8)
     history = {state_key(board, P1): 1}
     return State(board=board, player_to_move=P1, history_counts=history)
 
 
-def legal_moves(state: State) -> List[Move]:
+def legal_moves(state):
     if state.winner is not None:
         return []
-    moves: List[Move] = []
+    moves = []
     for c in range(COLS):
         if state.board[0, c] == EMPTY:
             moves.append(Move(c, "drop"))
@@ -65,14 +72,15 @@ def legal_moves(state: State) -> List[Move]:
     return moves
 
 
-def _drop_row(board: np.ndarray, c: int) -> int:
+def _drop_row(board, c):
+    # devolve a linha (a contar de cima) onde a peca cai, ou -1 se a coluna esta cheia
     for r in range(ROWS - 1, -1, -1):
         if board[r, c] == EMPTY:
             return r
     return -1
 
 
-def _four_in_a_row_for(board: np.ndarray, player: int) -> bool:
+def _four_in_a_row_for(board, player):
     for r in range(ROWS):
         for c in range(COLS):
             if board[r, c] != player:
@@ -85,29 +93,28 @@ def _four_in_a_row_for(board: np.ndarray, player: int) -> bool:
     return False
 
 
-def _has_legal_pop(board: np.ndarray, player: int) -> bool:
+def _has_legal_pop(board, player):
     return bool((board[ROWS - 1, :] == player).any())
 
 
-def _has_legal_drop(board: np.ndarray) -> bool:
+def _has_legal_drop(board):
     return bool((board[0, :] == EMPTY).any())
 
 
-def check_win(
-    board: np.ndarray, last_move: Move, mover: int
-) -> Union[int, str, None]:
-    """Return winning player (1 or 2), 'draw', or None."""
+def check_win(board, last_move, mover):
+    # Devolve o jogador vencedor (1 ou 2), 'draw', ou None
     other = 3 - mover
     me_won = _four_in_a_row_for(board, mover)
     other_won = _four_in_a_row_for(board, other)
 
     if last_move.kind == "pop":
-        # Allen 2010 rule: simultaneous four-in-row by pop favours pop player.
+        # Regra Allen 2010: se o pop cria 4-em-linha para os dois, ganha quem fez o pop
         if me_won:
             return mover
         if other_won:
             return other
-    else:  # drop — only the dropping player can complete a four
+    else:
+        # drop -- so o jogador que largou pode completar uma linha
         if me_won:
             return mover
 
@@ -117,7 +124,7 @@ def check_win(
     return None
 
 
-def apply_move(state: State, move: Move) -> State:
+def apply_move(state, move):
     if state.winner is not None:
         raise ValueError("Game already finished.")
 
@@ -129,13 +136,12 @@ def apply_move(state: State, move: Move) -> State:
         if r == -1:
             raise ValueError(f"Column {move.column} is full.")
         new_board[r, move.column] = mover
-    else:  # pop
+    else:
+        # pop
         if new_board[ROWS - 1, move.column] != mover:
-            raise ValueError(
-                f"Illegal pop on column {move.column}: bottom not player {mover}."
-            )
-        # Shift column down by one; top becomes empty.
-        new_board[1:ROWS, move.column] = state.board[0 : ROWS - 1, move.column]
+            raise ValueError(f"Illegal pop on column {move.column}: bottom not player {mover}.")
+        # desce a coluna uma posicao; o topo fica vazio
+        new_board[1:ROWS, move.column] = state.board[0:ROWS - 1, move.column]
         new_board[0, move.column] = EMPTY
 
     new_player = 3 - mover
@@ -154,12 +160,12 @@ def apply_move(state: State, move: Move) -> State:
     )
 
 
-def can_claim_repetition_draw(state: State) -> bool:
+def can_claim_repetition_draw(state):
     key = state_key(state.board, state.player_to_move)
     return state.history_counts.get(key, 0) >= 3
 
 
-def render(board: np.ndarray) -> str:
+def render(board):
     glyph = {EMPTY: "-", P1: "X", P2: "O"}
     lines = ["".join(glyph[int(v)] for v in row) for row in board]
     return "\n".join(lines)

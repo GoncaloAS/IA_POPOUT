@@ -1,13 +1,11 @@
-"""Train ID3 over the PopOut dataset, sweep max_depth, optionally play matches.
+"""Treina ID3 sobre o dataset PopOut, faz sweep de max_depth, joga matches.
 
-Saves the trained tree as decision_tree.pkl so the GUI and evaluation can use it.
+Guarda a arvore treinada em decision_tree.pkl para a GUI e a avaliacao usarem.
 
-Usage:
+Uso:
     python train_tree.py --sweep --vs-random 10 --vs-mcts 6
     python train_tree.py --max-depth 8
 """
-
-from __future__ import annotations
 
 import argparse
 import math
@@ -74,7 +72,9 @@ def sweep_max_depth(depths=(3, 5, 8, 10, None), seed=0):
 
 
 def play_match(strat_a_factory, strat_b_factory, n_games=10, max_turns=300):
-    wins_a = wins_b = draws = 0
+    wins_a = 0
+    wins_b = 0
+    draws = 0
     times_a, times_b = [], []
     for g in range(n_games):
         def mk(fac, store):
@@ -97,9 +97,12 @@ def play_match(strat_a_factory, strat_b_factory, n_games=10, max_turns=300):
 
         final = play_game(p1, p2, on_render=lambda _: None,
                           show_intermediate=False, max_turns=max_turns)
-        if final.winner == a_player: wins_a += 1
-        elif final.winner == "draw": draws += 1
-        else: wins_b += 1
+        if final.winner == a_player:
+            wins_a += 1
+        elif final.winner == "draw":
+            draws += 1
+        else:
+            wins_b += 1
     return {
         "wins_a": wins_a, "wins_b": wins_b, "draws": draws,
         "avg_time_a": sum(times_a) / max(1, len(times_a)),

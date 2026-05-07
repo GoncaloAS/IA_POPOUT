@@ -1,10 +1,8 @@
-"""Generate (state, move) dataset by MCTS self-play (behavioural cloning).
+"""Gera dataset (estado, jogada) por self-play do MCTS (behavioural cloning).
 
-Produces popout_dataset.csv with 44 columns:
-    s0..s41 (cells in {0,1,2}), to_play in {1,2}, move in {d0..d6, p0..p6}.
+Produz popout_dataset.csv com 44 colunas:
+    s0..s41 (celulas em {0,1,2}), to_play em {1,2}, move em {d0..d6, p0..p6}.
 """
-
-from __future__ import annotations
 
 import argparse
 import csv
@@ -13,46 +11,39 @@ import os
 import random
 import sys
 import time
-from typing import List
 
 from popout import COLS, Move, apply_move, initial_state, legal_moves
 from mcts import mcts_strategy
 
 
-def encode_move(move: Move) -> str:
+def encode_move(move):
     return f"{'d' if move.kind == 'drop' else 'p'}{move.column}"
 
 
-def encode_state_row(state) -> List:
+def encode_state_row(state):
     flat = state.board.reshape(-1).tolist()
     return [int(v) for v in flat] + [int(state.player_to_move)]
 
 
-def feature_columns() -> List[str]:
+def feature_columns():
     return [f"s{i}" for i in range(42)] + ["to_play"]
 
 
-def write_header(writer: csv.writer) -> None:
+def write_header(writer):
     writer.writerow(feature_columns() + ["move"])
 
 
-def generate_dataset(
-    n_games: int = 50,
-    out_path: str = "popout_dataset.csv",
-    epsilon: float = 0.10,
-    n_simulations: int = 200,
-    rollout: str = "heuristic_win",
-    tactical_root: bool = True,
-    c: float = math.sqrt(2),
-    seed: int = 0,
-    max_turns: int = 300,
-    verbose: bool = True,
-) -> dict:
+def generate_dataset(n_games=50, out_path="popout_dataset.csv", epsilon=0.10,
+                     n_simulations=200, rollout="heuristic_win", tactical_root=True,
+                     c=math.sqrt(2), seed=0, max_turns=300, verbose=True):
     if os.path.dirname(out_path):
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
 
     rng_master = random.Random(seed)
-    n_pairs = n_random_moves = n_mcts_moves = n_pops = 0
+    n_pairs = 0
+    n_random_moves = 0
+    n_mcts_moves = 0
+    n_pops = 0
     game_lengths = []
     winners = {1: 0, 2: 0, "draw": 0, "incomplete": 0}
     move_class_counts = {}
